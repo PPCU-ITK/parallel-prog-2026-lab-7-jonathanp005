@@ -1,0 +1,57 @@
+CPU vs GPU Runtime Comparison for cfd_euler.cpp
+===============================================
+
+Benchmark setup
+---------------
+- Code: cfd_euler.cpp (OpenMP CPU + OpenMP GPU offload version)
+- Problem sizes tested by scaling both dimensions:
+  - 1x: Nx=200, Ny=100
+  - 4x: Nx=800, Ny=400
+  - 8x: Nx=1600, Ny=800
+  - 16x: Nx=3200, Ny=1600
+- Time steps used for this benchmark run: nSteps=5
+- Platform notes:
+  - CPU build: OpenMP multicore
+  - GPU build: OpenMP target offload (compiled for cc75 on this system)
+
+How to reproduce
+----------------
+1) Load modules:
+   module load nvhpc
+   module load cuda
+
+2) Build CPU and GPU binaries:
+   nvc++ -mp=multicore -O3 cfd_euler.cpp -o cfd_euler_cpu
+   nvc++ -mp=gpu -gpu=cc75 -O3 cfd_euler.cpp -o cfd_euler_gpu -Minfo=accel,mp
+
+   Note: if your GPU is A100/H100 class, use cc80 or the correct compute capability.
+
+3) Run timings (format: ./binary <size_multiplier> <nSteps>):
+   ./cfd_euler_cpu 1 5
+   ./cfd_euler_gpu 1 5
+   ./cfd_euler_cpu 4 5
+   ./cfd_euler_gpu 4 5
+   ./cfd_euler_cpu 8 5
+   ./cfd_euler_gpu 8 5
+   ./cfd_euler_cpu 16 5
+   ./cfd_euler_gpu 16 5
+
+4) Read the final line printed by each run:
+   RESULT Nx=... Ny=... nSteps=... runtime_s=...
+
+Measured results
+----------------
+| Scale | Nx   | Ny   | CPU runtime (s) | GPU runtime (s) | Speedup (CPU/GPU) |
+|------:|-----:|-----:|----------------:|----------------:|------------------:|
+| 1x    | 200  | 100  | 0.433416        | 0.313162        | 1.38x             |
+| 4x    | 800  | 400  | 0.885150        | 0.352323        | 2.51x             |
+| 8x    | 1600 | 800  | 1.102320        | 0.377301        | 2.92x             |
+| 16x   | 3200 | 1600 | 3.801990        | 0.457356        | 8.31x             |
+
+Conclusions
+-----------
+1) The GPU is faster than CPU at every tested size.
+2) GPU advantage increases as the problem size grows (from 1.38x at 1x to 8.31x at 16x).
+3) For larger grids, offloading the update loops to the GPU gives substantially better runtime.
+4) OpenMP target data regions help keep arrays on-device and reduce transfer overhead across time steps.
+
